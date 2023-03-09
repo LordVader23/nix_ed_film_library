@@ -83,7 +83,7 @@ class Movie(db.Model):
     release_date = db.Column(db.Date, nullable=False)
     description = db.Column(db.Text, nullable=True)
     rate = db.Column(db.Integer, nullable=False)
-    poster = db.Column(db.String(250), default='path to default poster') # add path to default poster
+    poster = db.Column(db.String(250), default='/images/default.jpg')
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     director_id = db.Column(db.Integer, db.ForeignKey('directors.director_id'), nullable=False)
     genres = db.relationship('Genre', secondary=movie_genre, backref='movies')
@@ -101,7 +101,6 @@ class Movie(db.Model):
             'release_date': self.release_date,
             'description': self.description,
             'rate': self.rate,
-            'poster': self.poster,
             'user': f'{self.user.firstname} {self.user.lastname}',
             'director': self.director.name,
             'genres': [x.to_json() for x in self.genres]

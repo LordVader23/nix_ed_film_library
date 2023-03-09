@@ -1,11 +1,18 @@
-from flask import render_template, request, Blueprint, jsonify
+from flask import render_template, request, Blueprint, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
+from flask import current_app
 from ..models import User, Movie, Director, Genre
 from .. import db
-from datetime import date
-
+from datetime import date, datetime
+import os
 
 movies_bp = Blueprint('movies', __name__)
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
 
 @movies_bp.route('/movies', methods=['GET', 'POST'])
@@ -67,7 +74,18 @@ def movies():
         new_date = request.form['release_date']
         new_description = request.form['description']
         new_rate = request.form['rate']
-        new_poster = 'new poster'
+        new_poster = ''
+
+        if 'poster' not in request.files:
+            return 'No poster file is found!', 404
+        file = request.files['poster']
+        if file.filename == '':
+            return 'No selected file!', 404
+        if file and allowed_file(file.filename):
+            filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + os.path.splitext(file.filename)[1]
+            new_poster = filename
+            file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+
         user_id = request.form['user_id']  # use authorized user id instead
         director_id = request.form['director_id']
 
@@ -99,7 +117,18 @@ def movie(id):
         new_date = request.form['release_date']
         new_description = request.form['description']
         new_rate = request.form['rate']
-        new_poster = 'new poster'
+        new_poster = ''
+
+        if 'poster' not in request.files:
+            return 'No poster file is found!', 404
+        file = request.files['poster']
+        if file.filename == '':
+            return 'No selected file!', 404
+        if file and allowed_file(file.filename):
+            filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + os.path.splitext(file.filename)[1]
+            new_poster = filename
+            file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+
         user_id = request.form['user_id']  # use authorized user id instead
         director_id = request.form['director_id']
 
@@ -166,3 +195,11 @@ def movie_genre_delete(m_id, g_id):
                 return 'Deleted!', 201
         else:
             return 'Genre with that id not associated to that movie!', 404
+
+
+@movies_bp.route('/movie/<int:m_id>/poster', methods=['GET'])
+def movie_get_poster(m_id):
+    if request.method == 'GET':
+        movie = Movie.query.get_or_404(m_id)
+
+        return send_file(os.path.join(current_app.config['UPLOAD_FOLDER'], movie.poster))
