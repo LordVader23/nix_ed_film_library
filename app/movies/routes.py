@@ -1,6 +1,7 @@
 from flask import render_template, request, Blueprint, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from flask_login import login_user, current_user, logout_user, login_required
 from flask import current_app
 from ..models import User, Movie, Director, Genre
 from .. import db
@@ -70,9 +71,12 @@ def movies():
                 return 'Nothing found', 404
 
     if request.method == 'POST':
+        if not current_user.is_authenticated:
+            return 'You are not authorized!', 401
+
         new_title = request.form['title']
         new_date = request.form['release_date']
-        new_description = request.form['description']
+        new_description = request.form.get('description')
         new_rate = request.form['rate']
         new_poster = ''
 
@@ -82,11 +86,11 @@ def movies():
         if file.filename == '':
             return 'No selected file!', 404
         if file and allowed_file(file.filename):
-            filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + os.path.splitext(file.filename)[1]
+            filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H_%M_%S") + os.path.splitext(file.filename)[1]
             new_poster = filename
             file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
 
-        user_id = request.form['user_id']  # use authorized user id instead
+        user_id = current_user.get_id()
         director_id = request.form['director_id']
 
         if new_description is not None:
@@ -111,76 +115,92 @@ def movie(id):
         return jsonify(movie.to_json()), 201
 
     if request.method == 'PUT':
+        if not current_user.is_authenticated:
+            return 'You are not authorized!', 401
+
         movie = Movie.query.get_or_404(id)
 
-        new_title = request.form['title']
-        new_date = request.form['release_date']
-        new_description = request.form['description']
-        new_rate = request.form['rate']
-        new_poster = ''
+        if current_user.get_id() == movie.user_id or current_user.is_admin:
+            new_title = request.form['title']
+            new_date = request.form['release_date']
+            new_description = request.form['description']
+            new_rate = request.form['rate']
+            new_poster = ''
 
-        if 'poster' not in request.files:
-            return 'No poster file is found!', 404
-        file = request.files['poster']
-        if file.filename == '':
-            return 'No selected file!', 404
-        if file and allowed_file(file.filename):
-            filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + os.path.splitext(file.filename)[1]
-            new_poster = filename
-            file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+            if 'poster' not in request.files:
+                return 'No poster file is found!', 404
+            file = request.files['poster']
+            if file.filename == '':
+                return 'No selected file!', 404
+            if file and allowed_file(file.filename):
+                filename = 'File_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + os.path.splitext(file.filename)[1]
+                new_poster = filename
+                file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
 
-        user_id = request.form['user_id']  # use authorized user id instead
-        director_id = request.form['director_id']
+            user_id = request.form['user_id']  # use authorized user id instead
+            director_id = request.form['director_id']
 
-        movie.title = new_title
-        movie.release_date = new_date
-        movie.description = new_description
-        movie.rate = new_rate
-        movie.poster = new_poster
-        movie.user_id = user_id
-        movie.director_id = director_id
+            movie.title = new_title
+            movie.release_date = new_date
+            movie.description = new_description
+            movie.rate = new_rate
+            movie.poster = new_poster
+            movie.user_id = user_id
+            movie.director_id = director_id
 
-        db.session.flush()
-        db.session.commit()
+            db.session.flush()
+            db.session.commit()
 
-        return jsonify(movie.to_json()), 201
+            return jsonify(movie.to_json()), 201
+        else:
+            return 'You do not have permission for this!', 403
 
     if request.method == 'DELETE':
-        movie = Movie.query.filter_by(movie_id=id).delete()
+        movie = Movie.query.filter_by(movie_id=id)
+        u_id = movie.first().user_id
+        movie.delete()
 
-        if not movie:
-            return 'Movie with that id not found', 404
+        if current_user.get_id() == u_id or current_user.is_admin:
+            if not movie:
+                return 'Movie with that id not found', 404
 
-        return 'Deleted!', 201
+            return 'Deleted!', 201
+        else:
+            return 'You do not have permission for this!', 403
 
 
 @movies_bp.route('/movie/<int:id>/genre', methods=['POST'])
+@login_required
 def movie_genre_add(id):
     movie = Movie.query.get(id)
 
-    if not movie:
-        return 'Movie with that id not found!', 404
+    if current_user.get_id() == movie.user_id or current_user.is_admin:
+        if not movie:
+            return 'Movie with that id not found!', 404
 
-    new_title = request.form['title']
-    genre = Genre.query.filter_by(title=new_title).first()
+        new_title = request.form['title']
+        genre = Genre.query.filter_by(title=new_title).first()
 
-    if not genre:
-        new_genre = Genre(title=new_title)
-        movie.genres.append(new_genre)
-        db.session.add(movie)
-        db.session.add(new_genre)
-        db.session.flush()
-        db.session.commit()
+        if not genre:
+            new_genre = Genre(title=new_title)
+            movie.genres.append(new_genre)
+            db.session.add(movie)
+            db.session.add(new_genre)
+            db.session.flush()
+            db.session.commit()
+        else:
+            movie.genres.append(genre)
+            db.session.add(movie)
+            db.session.flush()
+            db.session.commit()
+
+        return jsonify(movie.to_json()), 201
     else:
-        movie.genres.append(genre)
-        db.session.add(movie)
-        db.session.flush()
-        db.session.commit()
-
-    return jsonify(movie.to_json()), 201
+        return 'You do not have permission for this!', 403
 
 
 @movies_bp.route('/movie/<int:m_id>/genre/<int:g_id>', methods=['DELETE'])
+@login_required
 def movie_genre_delete(m_id, g_id):
     if request.method == 'DELETE':
         movie = Movie.query.get(m_id)
