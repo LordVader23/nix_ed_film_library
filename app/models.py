@@ -6,13 +6,6 @@ from flask import current_app
 from flask_migrate import Migrate
 import json
 
-# app = create_app()
-# with app.app_context():
-#     migrate = Migrate(app, db)
-# @login_manager.user_loader
-# def load_user(user_id):
-#     return User.query.get(int(user_id))
-
 
 @login_manager.user_loader
 def load_user(user_id):

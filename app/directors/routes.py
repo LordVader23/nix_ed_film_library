@@ -43,10 +43,12 @@ def director(id):
 
             return jsonify(director), 201
         elif request.method == 'DELETE':
-            director = Director.query.filter_by(director=id).delete()
-
-            if not director:
+            dir = db.session.query(Director).filter(Director.director_id == id).one()
+            if not dir:
                 return 'Director with that id not found', 404
+
+            db.session.delete(dir)
+            db.session.commit()
 
             return 'Deleted!', 201
     else:

@@ -78,6 +78,24 @@ def movies():
         new_date = request.form['release_date']
         new_description = request.form.get('description')
         new_rate = request.form['rate']
+        director_id = request.form['director_id']
+
+        if not new_title or not new_date or not new_rate or not director_id:
+            return 'You have not provided enough parameters!', 404
+
+        if int(new_rate) < 1 or int(new_rate) > 10:
+            return 'Rate value must from 1 to 10!', 404
+
+        dir = Director.query.filter_by(director_id=director_id).first()
+
+        if not dir:
+            return 'Director with that id is not found!', 404
+
+        try:
+            datetime.strptime(new_date, '%Y-%m-%d')
+        except Exception:
+            return 'You have provided date in wrong format, must be Y-m-d!', 404
+
         new_poster = ''
 
         if 'poster' not in request.files:
@@ -91,7 +109,6 @@ def movies():
             file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
 
         user_id = current_user.get_id()
-        director_id = request.form['director_id']
 
         if new_description is not None:
             new_movie = Movie(title=new_title, release_date=new_date, description=new_description,
@@ -126,6 +143,23 @@ def movie(id):
             new_description = request.form['description']
             new_rate = request.form['rate']
             new_poster = ''
+            director_id = request.form['director_id']
+
+            if not new_title or not new_date or not new_rate or not director_id:
+                return 'You have not provided enough parameters!', 404
+
+            if int(new_rate) < 1 or int(new_rate) > 10:
+                return 'Rate value must from 1 to 10!', 404
+
+            dir = Director.query.filter_by(director_id=director_id).first()
+
+            if not dir:
+                return 'Director with that id is not found!', 404
+
+            try:
+                datetime.strptime(new_date, '%Y-%m-%d')
+            except Exception:
+                return 'You have provided date in wrong format, must be Y-m-d!', 404
 
             if 'poster' not in request.files:
                 return 'No poster file is found!', 404
@@ -138,7 +172,6 @@ def movie(id):
                 file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
 
             user_id = request.form['user_id']  # use authorized user id instead
-            director_id = request.form['director_id']
 
             movie.title = new_title
             movie.release_date = new_date
@@ -156,13 +189,15 @@ def movie(id):
             return 'You do not have permission for this!', 403
 
     if request.method == 'DELETE':
-        movie = Movie.query.filter_by(movie_id=id)
+        movie = db.session.query(Movie).filter(Movie.movie_id == id).one()
         u_id = movie.first().user_id
-        movie.delete()
 
         if current_user.get_id() == u_id or current_user.is_admin:
             if not movie:
                 return 'Movie with that id not found', 404
+
+            db.session.delete(movie)
+            db.session.commit()
 
             return 'Deleted!', 201
         else:
@@ -179,6 +214,9 @@ def movie_genre_add(id):
             return 'Movie with that id not found!', 404
 
         new_title = request.form['title']
+        if not new_title:
+            return 'You have not provided title!', 404
+
         genre = Genre.query.filter_by(title=new_title).first()
 
         if not genre:

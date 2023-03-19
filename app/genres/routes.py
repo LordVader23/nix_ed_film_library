@@ -50,10 +50,13 @@ def genre(id):
             return 'You do not have permission for this!', 403
     elif request.method == 'DELETE':
         if current_user.is_admin:
-            genre = Genre.query.filter_by(genre_id=id).delete()
+            genre = db.session.query(Genre).filter(Genre.genre_id == id).one()
 
             if not genre:
                 return 'Genre with that id not found', 404
+
+            db.session.delete(genre)
+            db.session.commit()
 
             return 'Deleted!', 201
         else:
